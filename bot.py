@@ -1,3 +1,6 @@
+import os
+print("BOT STARTING...")
+
 import json
 import os
 import random
