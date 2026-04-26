@@ -1,0 +1,44 @@
+{
+    "1274979418": {
+        "name": "Olima",
+        "phone": "111111111",
+        "orders": [
+            {
+                "from": "Pekin",
+                "to": "Dushanbe",
+                "weight": 1.2,
+                "desc": "Телефон",
+                "track": "AV997733",
+                "status": "accepted"
+            }
+        ]
+    },
+    "8373458315": {
+        "name": "Muhammad",
+        "phone": "000000000",
+        "orders": [
+            {
+                "from": "Shanghai",
+                "to": "Dushanbe",
+                "weight": 20.0,
+                "desc": "Rolex",
+                "track": "AV574521",
+                "status": "accepted"
+            }
+        ]
+    },
+    "1344876704": {
+        "name": "Murtazo",
+        "phone": "900905900",
+        "orders": [
+            {
+                "from": "Иву",
+                "to": "Душанбе",
+                "weight": 2.0,
+                "desc": "Одежда",
+                "track": "AV599426",
+                "status": "accepted"
+            }
+        ]
+    }
+}
