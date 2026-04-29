@@ -24,6 +24,22 @@
                 "desc": "Rolex",
                 "track": "AV574521",
                 "status": "accepted"
+            },
+            {
+                "from": "Shanghai",
+                "to": "Dushanbe",
+                "weight": 11.0,
+                "desc": "Footbal",
+                "track": "AV297200",
+                "status": "accepted"
+            },
+            {
+                "from": "Pekin",
+                "to": "Vahdat",
+                "weight": 12.0,
+                "desc": "Televizor",
+                "track": "AV340005",
+                "status": "accepted"
             }
         ]
     },
