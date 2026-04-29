@@ -445,4 +445,4 @@ app.add_handler(
 print("✈️   AVVALIN CARGO BOT RUNNING...")
 if __name__ == "__main__":
     print("✈️ AVVALIN CARGO BOT RUNNING...")
-    app.run_polling(close_loop=False)
+    app.run_polling()
