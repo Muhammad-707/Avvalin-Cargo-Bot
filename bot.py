@@ -443,14 +443,6 @@ app.add_handler(
 )
 
 print("✈️   AVVALIN CARGO BOT RUNNING...")
-import asyncio
-
-async def main():
-    print("✈️ AVVALIN CARGO BOT RUNNING...")
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    await app.updater.idle()
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    print("✈️ AVVALIN CARGO BOT RUNNING...")
+    app.run_polling(close_loop=False)
