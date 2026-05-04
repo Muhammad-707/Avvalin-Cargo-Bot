@@ -12,7 +12,7 @@ from telegram.ext import (
 )
 # deploy fix
 
-from config import TOKEN, RATE_PER_KG
+from config import BOT_TOKEN as TOKEN, RATE_PER_KG
 
 FILE = "data.json"
 
