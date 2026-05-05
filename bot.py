@@ -1,6 +1,5 @@
 import json
 import os
-import random
 
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -10,18 +9,15 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
-# deploy fix
 
-from config import BOT_TOKEN as TOKEN, RATE_PER_KG
+from config import BOT_TOKEN as TOKEN
 
 FILE = "data.json"
 
 
-# ================= LOAD / SAVE =================
+# ================= DATA =================
 def load_users():
     if os.path.exists(FILE):
-        if os.path.getsize(FILE) == 0:
-            return {}
         with open(FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
@@ -35,414 +31,172 @@ def save_users(data):
 users = load_users()
 
 
-# ================= FIX DATA =================
-def fix_data():
-    for u in users.values():
-        for o in u.get("orders", []):
-            if isinstance(o, dict):
-                o.setdefault("status", "accepted")
-                o.setdefault("track", "N/A")
-
-
-fix_data()
-save_users(users)
-
-
 # ================= MENU =================
 def menu():
     return ReplyKeyboardMarkup(
         [
-            ["📦 Заказ", "👤 Профиль"],
-            ["💰 Цена", "📋 Мои заказы"],
-            ["🚚 Статус", "📍 Отследить"],
-            ["🆘 Поддержка", "📞 Контакты"],
-            ["ℹ О компании"]
+            ["📍 Адрес", "📦 VIP"],
+            ["🆘 Поддержка"]
         ],
         resize_keyboard=True
     )
 
 
-MAIN_BUTTONS = {
-    "📦 Заказ",
-    "👤 Профиль",
-    "💰 Цена",
-    "📋 Мои заказы",
-    "🚚 Статус",
-    "📍 Отследить",
-    "🆘 Поддержка",
-    "📞 Контакты",
-    "ℹ О компании",
+def city_menu():
+    return ReplyKeyboardMarkup(
+        [
+            ["Душанбе"],
+            ["Панджакент"],
+            ["Айни"],
+            ["Кумсангир"]
+        ],
+        resize_keyboard=True
+    )
+
+
+# ================= CITY DATA =================
+CITY_DATA = {
+    "Душанбе": {
+        "code": "01",
+        "address": "详细地址：浙江省金华市浦江县河山村A01栋"
+    },
+    "Панджакент": {
+        "code": "02",
+        "address": "详细地址：浙江省金华市浦江县河山村A02栋"
+    },
+    "Айни": {
+        "code": "03",
+        "address": "详细地址：浙江省金华市浦江县河山村A03栋"
+    },
+    "Кумсангир": {
+        "code": "04",
+        "address": "详细地址：浙江省金华市浦江县河山村A04栋"
+    }
 }
-
-
-# ================= TRACK =================
-def make_track():
-    return f"AV{random.randint(100000,999999)}"
-
-
-# ================= STATUS =================
-def pretty_status(status):
-    return {
-        "accepted": "📥 Принят на складе",
-        "warehouse": "🏭 В обработке",
-        "shipping": "🚚 В пути",
-        "arrived": "📍 В стране",
-        "delivered": "✅ Доставлен"
-    }.get(status, "📦 Обрабатывается")
 
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     uid = str(update.effective_user.id)
 
     if uid not in users:
         users[uid] = {
-            "name": "",
             "phone": "",
-            "orders": []
+            "city": "",
+            "code": ""
         }
-        save_users(users)
-
-        context.user_data["step"] = "name"
-
-        await update.message.reply_text(
-            "👤 Введите ваше имя:",
-            reply_markup=menu()
-        )
-        return
-
-    name = users[uid].get("name", "")
-
-    await update.message.reply_text(
-f"""
-👋 Добро пожаловать, {name}!
-
-✈️ 🚚  AVVALIN CARGO
-🇨🇳 Китай → 🇹🇯 Таджикистан
-
-🚀 Быстрое оформление грузов
-🔒 Надёжная доставка без рисков
-📦 Выгодные тарифы и прозрачная система
-""",
-reply_markup=menu()
-    )
-
-
-# ================= TEXT =================
-async def text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    msg = update.message.text.strip()
-    uid = str(update.effective_user.id)
-
-    if uid not in users:
-        return
-
-    data = users[uid]
-
-    if "step" not in context.user_data:
-        context.user_data["step"] = None
-
-    step = context.user_data.get("step")
-
-    # =================================================
-    # FIX: если нажата кнопка меню во время любого шага —
-    # сбрасываем сценарий, чтобы бот не путался
-    # =================================================
-    if msg in MAIN_BUTTONS and step not in ("name", "phone"):
-        context.user_data["step"] = None
-        step = None
-
-    # ================= REGISTRATION =================
-    if step == "name":
-        data["name"] = msg
         save_users(users)
 
         context.user_data["step"] = "phone"
 
         await update.message.reply_text(
-            "📞 Введите ваш телефон:",
-            reply_markup=menu()
-        )
-        return
-
-    if step == "phone":
-        data["phone"] = msg
-        save_users(users)
-
-        context.user_data["step"] = None
-
-        await update.message.reply_text(
-            "✅ Регистрация завершена!",
-            reply_markup=menu()
-        )
-        return
-
-
-    # ================= PROFILE =================
-    if msg == "👤 Профиль":
-        await update.message.reply_text(
-f"""
-👤 {data.get("name","")}
-📞 {data.get("phone","")}
-🆔 {uid}
-📦 Заказов: {len(data.get("orders",[]))}
-""",
-reply_markup=menu()
-        )
-        return
-
-
-    # ================= PRICE =================
-    if msg == "💰 Цена":
-        context.user_data["step"] = "price"
-        await update.message.reply_text(
-            "⚖ Введите вес (кг):",
-            reply_markup=menu()
-        )
-        return
-
-    if step == "price":
-        try:
-            w = float(msg)
-            total = w * RATE_PER_KG
-            await update.message.reply_text(
-f"💰 Стоимость: {total}$",
-reply_markup=menu()
-            )
-        except:
-            await update.message.reply_text(
-                "❌ Введите число",
-                reply_markup=menu()
-            )
-
-        context.user_data["step"] = None
-        return
-
-
-    # ================= MY ORDERS (NEW) =================
-    if msg == "📋 Мои заказы":
-
-        orders = data.get("orders", [])
-
-        if not orders:
-            await update.message.reply_text(
-                "📦 У вас пока нет заказов",
-                reply_markup=menu()
-            )
-            return
-
-        text_orders = "📋 Последние заказы:\n\n"
-
-        for o in orders[-5:]:
-            text_orders += (
-                f"{o['track']} | "
-                f"{o['weight']} кг | "
-                f"{pretty_status(o['status'])}\n"
-            )
-
-        await update.message.reply_text(
-            text_orders,
-            reply_markup=menu()
-        )
-        return
-
-
-    # ================= ORDER =================
-    if msg == "📦 Заказ":
-        context.user_data["step"] = "from"
-        context.user_data["order"] = {}
-
-        await update.message.reply_text(
-            "📍 Откуда отправка?",
-            reply_markup=menu()
-        )
-        return
-
-    if step == "from":
-        context.user_data["order"]["from"] = msg
-        context.user_data["step"] = "to"
-
-        await update.message.reply_text(
-            "📍 Куда доставка?",
-            reply_markup=menu()
-        )
-        return
-
-    if step == "to":
-        context.user_data["order"]["to"] = msg
-        context.user_data["step"] = "weight"
-
-        await update.message.reply_text(
-            "⚖ Вес груза?",
-            reply_markup=menu()
-        )
-        return
-
-    if step == "weight":
-        try:
-            context.user_data["order"]["weight"] = float(msg)
-        except:
-            await update.message.reply_text(
-                "❌ Введите число",
-                reply_markup=menu()
-            )
-            return
-
-        context.user_data["step"] = "desc"
-
-        await update.message.reply_text(
-            "📦 Описание груза?",
-            reply_markup=menu()
-        )
-        return
-
-    if step == "desc":
-
-        order = {
-            "from": context.user_data["order"]["from"],
-            "to": context.user_data["order"]["to"],
-            "weight": context.user_data["order"]["weight"],
-            "desc": msg,
-            "track": make_track(),
-            "status": "accepted"
-        }
-
-        data["orders"].append(order)
-        save_users(users)
-
-        context.user_data.clear()
-
-        await update.message.reply_text(
-f"""
-✅ Заказ создан
-
-📦 Трек: {order["track"]}
-📍 {pretty_status(order["status"])}
-""",
-reply_markup=menu()
-        )
-        return
-
-
-    # ================= STATUS =================
-    if msg == "🚚 Статус":
-
-        orders = data.get("orders", [])
-
-        if not orders:
-            await update.message.reply_text(
-                "❌ Нет заказов",
-                reply_markup=menu()
-            )
-            return
-
-        last = orders[-1]
-
-        await update.message.reply_text(
-f"""
-🚚 Последний заказ
-
-📦 {last["track"]}
-📍 {pretty_status(last["status"])}
-""",
-reply_markup=menu()
-        )
-        return
-
-
-    # ================= TRACK =================
-    if msg == "📍 Отследить":
-        context.user_data["step"] = "track"
-
-        await update.message.reply_text(
-            "🔎 Введите трек номер:",
-            reply_markup=menu()
-        )
-        return
-
-    if step == "track":
-
-        found = None
-
-        for u in users.values():
-            for o in u.get("orders", []):
-                if o["track"] == msg:
-                    found = o
-                    break
-
-        if found:
-            await update.message.reply_text(
-f"""
-📦 {found["track"]}
-📍 {pretty_status(found["status"])}
-""",
-reply_markup=menu()
-            )
-        else:
-            await update.message.reply_text(
-                "❌ Трек не найден",
-                reply_markup=menu()
-            )
-
-        context.user_data["step"] = None
-        return
-
-
-    # ================= SUPPORT =================
-    if msg == "🆘 Поддержка":
-        await update.message.reply_text(
-"""📞 Наша поддержка работает 24/7.
-💬 Напишите менеджеру — мы ответим быстро.
-🚀 Avvalin Cargo всегда рядом с клиентом
-""",
-reply_markup=menu()
-        )
-        return
-
-
-    # ================= CONTACTS NEW =================
-    if msg == "📞 Контакты":
-        await update.message.reply_text(
-"""📞 Контакты
-
-WhatsApp: +992 ...
-Telegram: @manager
-""",
-reply_markup=menu()
-        )
-        return
-
-
-    # ================= ABOUT =================
-    if msg == "ℹ О компании":
-        await update.message.reply_text(
-"""✈️ Avvalin Cargo — международная логистическая компания.
-🇨🇳 Мы доставляем грузы из Китая в Таджикистан быстро и безопасно.
-📦 Наша цель — сделать доставку простой, прозрачной и доступной для каждого клиента.
-""",
-reply_markup=menu()
+            "📞 Введите ваш номер телефона:"
         )
         return
 
     await update.message.reply_text(
-        "👇 Используйте меню",
+        "👋 Добро пожаловать!",
         reply_markup=menu()
     )
+
+
+# ================= TEXT =================
+async def text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message.text
+    uid = str(update.effective_user.id)
+
+    if uid not in users:
+        return
+
+    step = context.user_data.get("step")
+
+    # ===== PHONE =====
+    if step == "phone":
+        users[uid]["phone"] = msg
+        save_users(users)
+
+        context.user_data["step"] = "city"
+
+        await update.message.reply_text(
+            "🌍 Выберите ваш город:",
+            reply_markup=city_menu()
+        )
+        return
+
+    # ===== CITY =====
+    if step == "city":
+        if msg not in CITY_DATA:
+            return
+
+        city = CITY_DATA[msg]
+
+        users[uid]["city"] = msg
+        users[uid]["code"] = city["code"]
+
+        save_users(users)
+
+        context.user_data["step"] = None
+
+        await update.message.reply_text(
+            f"""
+✅ Сохранено!
+
+📍 Город: {msg}
+📦 Код: {city["code"]}
+
+📮 Ваш адрес в Китае:
+{city["address"]}
+{users[uid]["phone"]} 号
+""",
+            reply_markup=menu()
+        )
+        return
+
+    # ===== ADDRESS BUTTON =====
+    if msg == "📍 Адрес":
+        user = users[uid]
+
+        if not user["city"]:
+            await update.message.reply_text("Сначала выберите город")
+            return
+
+        city = CITY_DATA[user["city"]]
+
+        await update.message.reply_text(
+            f"""
+📮 Ваш адрес:
+
+{city["address"]}
+{user["phone"]} 号
+
+📍 {user["city"]}
+""",
+            reply_markup=menu()
+        )
+        return
+
+    # ===== VIP =====
+    if msg == "📦 VIP":
+        await update.message.reply_text(
+            "💎 VIP клиенты получают лучшие условия и скидки.\nСвяжитесь с менеджером.",
+            reply_markup=menu()
+        )
+        return
+
+    # ===== SUPPORT =====
+    if msg == "🆘 Поддержка":
+        await update.message.reply_text(
+            "📞 Напишите менеджеру: @manager",
+            reply_markup=menu()
+        )
+        return
 
 
 # ================= RUN =================
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(
-    MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
-        text
-    )
-)
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text))
 
-print("✈️   AVVALIN CARGO BOT RUNNING...")
-if __name__ == "__main__":
-    print("✈️ AVVALIN CARGO BOT RUNNING...")
-    app.run_polling()
+print("🚀 BOT RUNNING...")
+app.run_polling()
