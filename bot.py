@@ -1,9 +1,13 @@
 import json
 import os
-import asyncio
 from datetime import datetime
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ReplyKeyboardMarkup
+)
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -21,18 +25,26 @@ ADMIN_ID = 8373454356
 FILE = "data.json"
 
 
-# ================= GOOGLE SHEETS (OPTIONAL) =================
-# pip install gspread oauth2client
+# ================= GOOGLE SHEETS (optional) =================
 try:
     import gspread
     from oauth2client.service_account import ServiceAccountCredentials
 
-    SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    CREDS = ServiceAccountCredentials.from_json_keyfile_name("google.json", SCOPE)
-    GSHEET = gspread.authorize(CREDS)
-    SHEET = GSHEET.open("AvvalinCargo").sheet1
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+
+    creds = ServiceAccountCredentials.from_json_keyfile_name(
+        "google.json",
+        scope
+    )
+
+    client = gspread.authorize(creds)
+    sheet = client.open("AvvalinCargo").sheet1
+
 except:
-    SHEET = None
+    sheet = None
 
 
 # ================= DB =================
@@ -45,25 +57,13 @@ def load_db():
             return {}
     return {}
 
+
 def save_db(data):
     with open(FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
+
 db = load_db()
-
-
-# ================= VIP =================
-def vip(phone):
-    if not phone:
-        return "🥉 Bronze"
-    if phone.startswith("+992"):
-        return "🥈 Silver"
-    return "🥇 Gold"
-
-
-# ================= TRACK =================
-def make_track():
-    return f"AV{datetime.now().strftime('%H%M%S')}"
 
 
 # ================= CITY =================
@@ -75,7 +75,7 @@ CITY = {
 }
 
 
-# ================= UI (TEMU STYLE) =================
+# ================= MENU =================
 def menu():
     return ReplyKeyboardMarkup(
         [
@@ -90,34 +90,47 @@ def menu():
 def city_ui():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("✨ Душанбе", callback_data="dushanbe"),
-            InlineKeyboardButton("✨ Панджакент", callback_data="paj")
+            InlineKeyboardButton("Душанбе", callback_data="dushanbe"),
+            InlineKeyboardButton("Панджакент", callback_data="paj")
         ],
         [
-            InlineKeyboardButton("✨ Айни", callback_data="aini"),
-            InlineKeyboardButton("✨ Кумсангир", callback_data="kums")
+            InlineKeyboardButton("Айни", callback_data="aini"),
+            InlineKeyboardButton("Кумсангир", callback_data="kums")
         ]
     ])
 
 
-# ================= SAVE ORDER =================
-def save_to_sheets(row):
-    if SHEET:
-        SHEET.append_row(row)
+# ================= HELPERS =================
+def make_track():
+    return f"AV{datetime.now().strftime('%H%M%S')}"
+
+
+def vip(phone):
+    if not phone:
+        return "🥉 Bronze"
+    if phone.startswith("+992"):
+        return "🥈 Silver"
+    return "🥇 Gold"
+
+
+def notify(context, uid, text):
+    try:
+        return context.bot.send_message(uid, text)
+    except:
+        pass
 
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = str(update.effective_user.id)
+
+    if uid not in db:
+        db[uid] = {"orders": []}
+        save_db(db)
+
     context.user_data["step"] = "phone"
-    await update.message.reply_text("📞 Введите номер телефона:", reply_markup=menu())
 
-
-# ================= AUTO NOTIFY =================
-async def notify_user(context, uid, text):
-    try:
-        await context.bot.send_message(uid, text)
-    except:
-        pass
+    await update.message.reply_text("📞 Введите номер телефона:")
 
 
 # ================= TEXT =================
@@ -136,41 +149,52 @@ async def text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db[uid]["vip"] = vip(msg)
         save_db(db)
 
-        context.user_data["step"] = "city"
+        context.user_data["step"] = None
 
-        await update.message.reply_text("🏙 Выберите город:", reply_markup=city_ui())
+        await update.message.reply_text(
+            "🏙 Выберите город:",
+            reply_markup=city_ui()
+        )
         return
 
     # ===== NEW ORDER =====
     if msg == "🛒 Новый заказ":
-        context.user_data["step"] = "city"
-        await update.message.reply_text("🏙 Выберите город:", reply_markup=city_ui())
+        context.user_data["step"] = "phone"
+        await update.message.reply_text("📞 Введите номер телефона:")
         return
 
     # ===== PROFILE =====
     if msg == "👤 Профиль":
         u = db.get(uid, {})
         await update.message.reply_text(f"""
-👤 PROFILE
+👤 Профиль
 
 📞 {u.get('phone','-')}
 💎 {u.get('vip','Bronze')}
-📦 Orders: {len(u.get('orders',[]))}
+📦 Заказов: {len(u.get('orders',[]))}
 """)
         return
 
     # ===== ORDERS =====
     if msg == "📦 Мои заказы":
         orders = db.get(uid, {}).get("orders", [])
+
         if not orders:
             await update.message.reply_text("Нет заказов")
             return
 
-        text = "📦 ORDERS:\n\n"
+        text = "📦 Заказы:\n\n"
         for o in orders[-5:]:
-            text += o["track"] + " | " + o["status"] + "\n"
+            text += f"{o['track']} | {o['status']}\n"
 
         await update.message.reply_text(text)
+        return
+
+    # ===== SUPPORT =====
+    if msg == "🆘 Поддержка":
+        await update.message.reply_text(
+            "👤 @murtazo7\n📱 +992 90 090 5900"
+        )
         return
 
     # ===== TRACK =====
@@ -181,34 +205,39 @@ async def text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if step == "track":
         found = None
+
         for u in db.values():
             for o in u.get("orders", []):
                 if o["track"] == msg:
                     found = o
 
         await update.message.reply_text(
-            f"📦 {found['track']} - {found['status']}" if found else "Не найден"
+            f"📦 {found['track']} | {found['status']}" if found else "Не найден"
         )
+
         context.user_data["step"] = None
         return
 
 
-# ================= CITY SELECT =================
+# ================= CITY CALLBACK =================
 async def city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
     uid = str(q.from_user.id)
 
-    code, addr, city = CITY[q.data]
+    code, addr, city_name = CITY[q.data]
     phone = db.get(uid, {}).get("phone", "-")
+
+    if "orders" not in db[uid]:
+        db[uid]["orders"] = []
 
     track = make_track()
 
     order_text = f"""
 收件人：AVALIN
 手机号：{phone}
-详细地址：浙江省金华市浦江县河山村{addr}栋 ({phone}) 号 {city}
+详细地址：浙江省金华市浦江县河山村{addr}栋 ({phone}) 号 {city_name}
 """
 
     order = {
@@ -220,11 +249,18 @@ async def city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db[uid]["orders"].append(order)
     save_db(db)
 
-    # GOOGLE SHEETS
-    save_to_sheets([uid, track, phone, city, order_text, str(datetime.now())])
+    # Google Sheets
+    if sheet:
+        sheet.append_row([
+            uid,
+            track,
+            phone,
+            city_name,
+            order_text,
+            str(datetime.now())
+        ])
 
-    # AUTO NOTIFY
-    await notify_user(context, uid, f"✅ Заказ создан: {track}")
+    await notify(context, uid, f"✅ Заказ создан: {track}")
 
     await q.message.reply_text(order_text)
 
@@ -234,13 +270,14 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
-    total = len(db)
+    total_users = len(db)
+    total_orders = sum(len(u.get("orders", [])) for u in db.values())
 
     await update.message.reply_text(f"""
-🧑‍💼 ADMIN PANEL
+🧑‍💼 ADMIN
 
-👤 Users: {total}
-📦 Orders: {sum(len(u.get('orders',[])) for u in db.values())}
+👤 Users: {total_users}
+📦 Orders: {total_orders}
 """)
 
 
@@ -251,7 +288,7 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("admin", admin))
 
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text))
-app.add_handler(CallbackQueryHandler(city))
+app.add_handler(CallbackQueryHandler(city, pattern="^(dushanbe|paj|aini|kums)$"))
 
-print("🚀 NEXT LEVEL BOT RUNNING...")
+print("🚀 BOT RUNNING...")
 app.run_polling()
