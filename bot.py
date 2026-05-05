@@ -14,7 +14,7 @@ from telegram.ext import (
 from config import BOT_TOKEN
 
 # ================= ADMIN =================
-ADMIN_ID = 8373458315  # 👈 ОДИН АДМИН
+ADMIN_ID = 8373454356  # 👈 твой ID
 
 FILE = "data.json"
 
@@ -36,7 +36,7 @@ def save_db(data):
 db = load_db()
 
 
-# ================= VIP SYSTEM =================
+# ================= VIP =================
 def get_vip(phone):
     if not phone:
         return "🥉 Bronze"
@@ -45,7 +45,7 @@ def get_vip(phone):
     return "🥇 Gold"
 
 
-# ================= CITY DATA =================
+# ================= CITY =================
 CITY = {
     "dushanbe": ("01", "A01", "Душанбе"),
     "paj": ("02", "A02", "Панджакент"),
@@ -54,25 +54,28 @@ CITY = {
 }
 
 
-# ================= GLASS UI BUTTONS =================
+# ================= MENU =================
+def menu():
+    return ReplyKeyboardMarkup(
+        [
+            ["📍 Адрес", "👤 Профиль"],
+            ["🆘 Поддержка"]
+        ],
+        resize_keyboard=True
+    )
+
+
+# ================= CITY BUTTONS =================
 def city_buttons():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("✨🫧 Душанбе", callback_data="dushanbe"),
-            InlineKeyboardButton("✨🫧 Панджакент", callback_data="paj")
+            InlineKeyboardButton("✨ Душанбе", callback_data="dushanbe"),
+            InlineKeyboardButton("✨ Панджакент", callback_data="paj")
         ],
         [
-            InlineKeyboardButton("✨🫧 Айни", callback_data="aini"),
-            InlineKeyboardButton("✨🫧 Кумсангир", callback_data="kums")
+            InlineKeyboardButton("✨ Айни", callback_data="aini"),
+            InlineKeyboardButton("✨ Кумсангир", callback_data="kums")
         ]
-    ])
-
-
-def admin_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("👤 Users", callback_data="users")],
-        [InlineKeyboardButton("📦 Orders", callback_data="orders")],
-        [InlineKeyboardButton("📢 Broadcast", callback_data="broadcast")]
     ])
 
 
@@ -88,7 +91,7 @@ async def text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = str(update.effective_user.id)
 
     if uid not in db:
-        db[uid] = {"orders": []}
+        db[uid] = {}
 
     step = context.user_data.get("step")
 
@@ -113,7 +116,7 @@ async def text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ===== BROADCAST =====
+    # ===== BROADCAST (ADMIN) =====
     if context.user_data.get("step") == "broadcast" and uid == str(ADMIN_ID):
         for u in db.keys():
             try:
@@ -134,28 +137,50 @@ async def city_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = str(query.from_user.id)
 
     code, addr, city = CITY[query.data]
-    phone = db.get(uid, {}).get("phone", "")
-    vip = db.get(uid, {}).get("vip", "🥉 Bronze")
 
-    text_result = f"""
+    db[uid]["city"] = city
+    db[uid]["code"] = code
+    db[uid]["addr"] = addr
+
+    save_db(db)
+
+    await query.message.reply_text("✅ Город сохранён! Открой 👤 Профиль.")
+
+
+# ================= PROFILE =================
+async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message.text.strip()
+    uid = str(update.effective_user.id)
+
+    if msg != "👤 Профиль":
+        return
+
+    user = db.get(uid, {})
+
+    phone = user.get("phone", "-")
+    city = user.get("city", "")
+    vip = user.get("vip", "🥉 Bronze")
+    code = user.get("code", "")
+    addr = user.get("addr", "")
+
+    if not city:
+        await update.message.reply_text("Сначала выберите город")
+        return
+
+    text = f"""
 ✨📦 AVVALIN CARGO
 
 👤 VIP: {vip}
 
+📞 Телефон: {phone}
+📍 Город: {city}
+
 收件人：AVALIN
 手机号：{phone}
-详细地址：浙江省金华市浦江县河山村{addr}栋 ({phone}) 号 {city}
+详细地址：浙江省金华市浦江县河山村A{code}栋 ({phone}) 号 {city}
 """
 
-    if "orders" not in db[uid]:
-        db[uid]["orders"] = []
-
-    db[uid]["orders"].append(text_result)
-    db[uid]["last_order"] = text_result
-
-    save_db(db)
-
-    await query.message.reply_text(text_result)
+    await update.message.reply_text(text)
 
 
 # ================= ADMIN =================
@@ -163,35 +188,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
-    await update.message.reply_text("🧑‍💼 ADMIN PANEL", reply_markup=admin_menu())
-
-
-# ================= CALLBACK =================
-async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    uid = str(query.from_user.id)
-
-    # ===== USERS =====
-    if query.data == "users" and uid == str(ADMIN_ID):
-        text = "👤 USERS:\n\n"
-        for u, d in db.items():
-            text += f"{u} | {d.get('phone','-')} | {d.get('vip','-')}\n"
-        await query.message.reply_text(text)
-
-    # ===== ORDERS =====
-    elif query.data == "orders" and uid == str(ADMIN_ID):
-        text = "📦 ORDERS:\n\n"
-        for u, d in db.items():
-            for o in d.get("orders", []):
-                text += o + "\n-----------------\n"
-        await query.message.reply_text(text)
-
-    # ===== BROADCAST =====
-    elif query.data == "broadcast" and uid == str(ADMIN_ID):
-        context.user_data["step"] = "broadcast"
-        await query.message.reply_text("📢 Введите сообщение")
+    await update.message.reply_text("🧑‍💼 ADMIN ACTIVE")
 
 
 # ================= RUN =================
@@ -202,7 +199,7 @@ app.add_handler(CommandHandler("admin", admin))
 
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text))
 app.add_handler(CallbackQueryHandler(city_select))
-app.add_handler(CallbackQueryHandler(callback))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, profile))
 
-print("🚀 PRO BOT RUNNING...")
+print("🚀 BOT RUNNING...")
 app.run_polling()
