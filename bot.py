@@ -17,10 +17,17 @@ FILE = "data.json"
 
 # ================= DATA =================
 def load_users():
-    if os.path.exists(FILE):
+    if not os.path.exists(FILE):
+        return {}
+
+    if os.path.getsize(FILE) == 0:
+        return {}
+
+    try:
         with open(FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {}
+    except json.JSONDecodeError:
+        return {}
 
 
 def save_users(data):
